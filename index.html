@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NEON PUNTO: Tactics</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="background-fx"></div>
+
+    <header>
+      <div class="logo">NEON PUNTO</div>
+      <div id="scoreboard"></div>
+      <div class="header-controls">
+        <button class="btn small" onclick="game.showInstructions()">
+          Help
+        </button>
+        <button class="btn small" onclick="game.resetMatch()">Reset</button>
+      </div>
+    </header>
+
+    <div id="game-scene">
+      <div id="turn-indicator">Player 1</div>
+
+      <div id="board-wrapper">
+        <div id="grid"></div>
+      </div>
+
+      <div id="ai-sidebar">
+        <div id="ai-stats">
+          <div class="stats-header">
+            <span>UNIT</span><span>LATENCY</span><span>NODES</span
+            ><span>WIN%</span>
+          </div>
+          <div id="stat-row-0" class="stat-row hidden">
+            <span class="agent-label" style="color: var(--neon-red)">CPU1</span>
+            <span class="val-lat">0ms</span>
+            <span class="val-nodes">0</span>
+            <span class="val-win">0%</span>
+          </div>
+          <div id="stat-row-1" class="stat-row hidden">
+            <span class="agent-label" style="color: var(--neon-blue)"
+              >CPU2</span
+            >
+            <span class="val-lat">0ms</span>
+            <span class="val-nodes">0</span>
+            <span class="val-win">0%</span>
+          </div>
+          <div id="stat-row-2" class="stat-row hidden">
+            <span class="agent-label" style="color: var(--neon-green)"
+              >CPU3</span
+            >
+            <span class="val-lat">0ms</span>
+            <span class="val-nodes">0</span>
+            <span class="val-win">0%</span>
+          </div>
+          <div id="stat-row-3" class="stat-row hidden">
+            <span class="agent-label" style="color: var(--neon-yellow)"
+              >CPU4</span
+            >
+            <span class="val-lat">0ms</span>
+            <span class="val-nodes">0</span>
+            <span class="val-win">0%</span>
+          </div>
+        </div>
+        <div id="ai-logs"></div>
+      </div>
+    </div>
+
+    <div id="hud-panel">
+      <div class="deck-info">
+        <span class="label">Deck</span>
+        <span id="deck-count" class="value">18</span>
+      </div>
+
+      <div class="hand-container">
+        <div
+          id="hand-label"
+          class="label"
+          style="width: 100%; text-align: center; margin-bottom: 5px"
+        >
+          Choose Card to Play
+        </div>
+        <div id="player-hand"></div>
+      </div>
+    </div>
+
+    <!-- Instructions Modal (First Screen) -->
+    <div id="instructions-modal" class="modal active">
+      <div class="modal-content glass">
+        <h1 style="color: var(--neon-blue)">HOW TO PLAY</h1>
+        <div class="divider"></div>
+
+        <div class="instruction-step">
+          <h3>1. Objective</h3>
+          <p>
+            Be the first to create a straight line of
+            <strong>4 cards</strong> of your color (Horizontal, Vertical, or
+            Diagonal).
+          </p>
+        </div>
+
+        <div class="instruction-step">
+          <h3>2. Placing Cards</h3>
+          <p>
+            Place a card from your hand adjacent to any existing card on the
+            board.
+          </p>
+        </div>
+
+        <div class="instruction-step">
+          <h3 style="color: var(--neon-red)">3. Overwriting (Steal)</h3>
+          <p>
+            You can place a card ON TOP of an opponent's card if your card has a
+            <strong>higher value</strong>.
+          </p>
+        </div>
+
+        <div class="instruction-step">
+          <h3 style="color: var(--neon-yellow)">4. Constraints</h3>
+          <p>
+            The board cannot grow larger than <strong>6x6</strong> cells. Moves
+            that exceed this size are invalid.
+          </p>
+        </div>
+
+        <button
+          class="btn"
+          style="width: 100%; font-size: 1.1rem"
+          onclick="game.closeInstructions()"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+
+    <!-- Setup Modal -->
+    <div id="setup-modal" class="modal">
+      <div class="modal-content glass">
+        <h1>NEON PUNTO</h1>
+        <p>Tactical Card Strategy</p>
+        <div class="divider"></div>
+        <p>Select Players:</p>
+        <div class="btn-group">
+          <button class="btn" onclick="game.init(2, 'pve')">
+            1 Player(vs AI)
+          </button>
+          <button class="btn" onclick="game.init(4, 'cvc')">CPU vs CPU</button>
+          <button class="btn" onclick="game.init(2, 'pvp')">2 Players</button>
+          <button class="btn" onclick="game.init(3, 'pvp')">3 Players</button>
+          <button class="btn" onclick="game.init(4, 'pvp')">4 Players</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Round End Modal -->
+    <div id="round-modal" class="modal">
+      <div class="modal-content glass">
+        <h2 id="round-msg">Player 1 Wins Round!</h2>
+        <div id="score-summary" style="margin: 20px 0; font-size: 1.2rem"></div>
+        <button class="btn" onclick="game.nextRound()">Next Round</button>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

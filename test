@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEON PUNTO: Tactics</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="background-fx"></div>
+
+    <header>
+        <div class="logo">NEON PUNTO</div>
+        <div id="scoreboard">
+            </div>
+        <button class="btn small" onclick="game.resetMatch()">Reset Match</button>
+    </header>
+
+    <div id="game-scene">
+        <div id="turn-indicator">Player 1</div>
+        
+        <div id="board-wrapper">
+            <div id="grid">
+                </div>
+        </div>
+    </div>
+
+    <div id="hud-panel">
+        <div class="deck-info">
+            <span class="label">Deck</span>
+            <span id="deck-count" class="value">18</span>
+        </div>
+
+        <div class="hand-container">
+            <div class="label" style="width:100%; text-align:center; margin-bottom:5px;">Choose Card to Play</div>
+            <div id="player-hand">
+                </div>
+        </div>
+    </div>
+
+    <div id="setup-modal" class="modal active">
+        <div class="modal-content glass">
+            <h1>NEON PUNTO</h1>
+            <p>Tactical Card Strategy</p>
+            <div class="divider"></div>
+            <p>Select Players:</p>
+            <div class="btn-group">
+                <button class="btn" onclick="game.init(2)">2 Players</button>
+                <button class="btn" onclick="game.init(3)">3 Players</button>
+                <button class="btn" onclick="game.init(4)">4 Players</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="round-modal" class="modal">
+        <div class="modal-content glass">
+            <h2 id="round-msg">Player 1 Wins Round!</h2>
+            <div id="score-summary" style="margin: 20px 0; font-size: 1.2rem;"></div>
+            <button class="btn" onclick="game.nextRound()">Next Round</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
+
+:root {
+    --bg-dark: #0f0f13;
+    --bg-panel: rgba(20, 20, 30, 0.8);
+    --neon-red: #ff2a6d;
+    --neon-blue: #05d9e8;
+    --neon-green: #00f68e;
+    --neon-yellow: #f9c80e;
+    --text-main: #e0e6ed;
+    --grid-gap: 6px;
+    --card-size: 60px;
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+* { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+body {
+    margin: 0;
+    background-color: var(--bg-dark);
+    background-image: 
+        radial-gradient(circle at 50% 0%, #2a2a35 0%, transparent 60%),
+        linear-gradient(0deg, #050505 0%, #151520 100%);
+    color: var(--text-main);
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif; /* Recommend importing a tech font */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Header & Scoreboard */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background: var(--bg-panel);
+    backdrop-filter: blur(10px);
+    border-bottom: var(--glass-border);
+    z-index: 100;
+}
+
+.logo { font-weight: 800; letter-spacing: 2px; font-size: 1.4rem; background: linear-gradient(90deg, #fff, #aaa); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+#scoreboard { display: flex; gap: 20px; }
+.score-badge { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: bold; opacity: 0.5; transition: 0.3s; }
+.score-badge.active { opacity: 1; text-shadow: 0 0 10px rgba(255,255,255,0.3); transform: scale(1.1); }
+.score-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+.score-dot.filled { background: #fff; box-shadow: 0 0 5px #fff; }
+
+/* 3D Game Scene */
+#game-scene {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    perspective: 1200px; /* The magic 3D number */
+    overflow: hidden;
+    position: relative;
+}
+
+#turn-indicator {
+    position: absolute;
+    top: 20px;
+    background: rgba(0,0,0,0.6);
+    padding: 8px 20px;
+    border-radius: 20px;
+    border: var(--glass-border);
+    font-weight: bold;
+    letter-spacing: 1px;
+    z-index: 50;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    transition: color 0.3s, border-color 0.3s;
+}
+
+#board-wrapper {
+    transform-style: preserve-3d;
+    transform: rotateX(25deg) translateY(-20px); /* The Tilted Table Effect */
+    transition: transform 0.5s ease;
+}
+
+#grid {
+    display: grid;
+    grid-template-columns: repeat(11, var(--card-size));
+    grid-template-rows: repeat(11, var(--card-size));
+    gap: var(--grid-gap);
+    padding: 20px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Cells & Cards */
+.cell {
+    width: var(--card-size);
+    height: var(--card-size);
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    position: relative;
+    transition: 0.2s;
+}
+
+.cell.valid-move {
+    cursor: pointer;
+    box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.1);
+    border: 1px dashed rgba(255,255,255,0.2);
+}
+.cell.valid-move:hover {
+    background: rgba(255,255,255,0.1);
+    transform: translateZ(10px);
+}
+.cell.invalid-bounds {
+    background: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,0,0,0.05) 5px, rgba(255,0,0,0.05) 10px);
+    opacity: 0.5;
+}
+
+.card {
+    width: 100%; height: 100%;
+    border-radius: 6px;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 1.8rem; font-weight: 900; color: #fff;
+    position: absolute; top: 0; left: 0;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    backface-visibility: hidden;
+    animation: dropIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-shadow: 0 2px 0 rgba(0,0,0,0.2);
+}
+
+.card.red { background: linear-gradient(135deg, var(--neon-red), #900); border-bottom: 3px solid #500; }
+.card.blue { background: linear-gradient(135deg, var(--neon-blue), #005f73); border-bottom: 3px solid #003f53; }
+.card.green { background: linear-gradient(135deg, var(--neon-green), #006400); border-bottom: 3px solid #004400; }
+.card.yellow { background: linear-gradient(135deg, var(--neon-yellow), #b8860b); color: #222; border-bottom: 3px solid #886600; text-shadow: none; }
+
+/* The Winning Line Highlight */
+.winning {
+    animation: pulseWin 1s infinite alternate;
+    z-index: 10;
+    border: 2px solid #fff !important;
+    box-shadow: 0 0 20px #fff;
+}
+
+/* HUD Panel */
+#hud-panel {
+    background: var(--bg-panel);
+    border-top: var(--glass-border);
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    backdrop-filter: blur(10px);
+    z-index: 100;
+}
+
+.deck-info { display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0.7; }
+.deck-info .value { font-size: 1.5rem; font-weight: bold; }
+.deck-info .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; }
+
+.hand-container { display: flex; flex-direction: column; align-items: center; }
+#player-hand { display: flex; gap: 15px; }
+
+.hand-card {
+    width: 60px; height: 80px;
+    border-radius: 8px;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 1.5rem; font-weight: bold;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 2px solid transparent;
+    position: relative;
+    background: #333;
+}
+.hand-card.selected { transform: translateY(-15px) scale(1.1); border-color: #fff; box-shadow: 0 0 15px rgba(255,255,255,0.5); z-index: 10; }
+.hand-card:hover:not(.selected) { transform: translateY(-5px); }
+
+/* Buttons & Modals */
+.btn {
+    background: linear-gradient(90deg, #444, #222);
+    border: 1px solid #666; color: #fff;
+    padding: 10px 25px; border-radius: 4px;
+    cursor: pointer; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;
+    transition: 0.2s;
+}
+.btn:hover { background: #555; border-color: #fff; }
+.glass { background: rgba(30, 30, 40, 0.95); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.8); color: #fff; }
+
+.modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    display: flex; justify-content: center; align-items: center;
+    opacity: 0; pointer-events: none; transition: 0.3s; z-index: 200;
+}
+.modal.active { opacity: 1; pointer-events: all; }
+.modal-content { padding: 40px; border-radius: 10px; text-align: center; width: 400px; max-width: 90%; }
+.divider { height: 1px; background: linear-gradient(90deg, transparent, #fff, transparent); margin: 20px 0; }
+
+/* Animations */
+@keyframes dropIn { from { transform: scale(3) translateZ(100px); opacity: 0; } to { transform: scale(1) translateZ(0); opacity: 1; } }
+@keyframes pulseWin { from { box-shadow: 0 0 10px #fff; } to { box-shadow: 0 0 30px #fff, 0 0 10px var(--neon-blue); } }
+
+/* Responsive */
+@media (max-width: 600px) {
+    :root { --card-size: 32px; }
+    #board-wrapper { transform: rotateX(10deg); }
+    .hand-card { width: 45px; height: 60px; font-size: 1.2rem; }
+    #hud-panel { padding: 10px; }
+}
+
+
+class PuntoTactics {
+    constructor() {
+        this.GRID_SIZE = 11;
+        this.CENTER = 5;
+        this.WIN_COUNT = 4;
+        this.WINS_NEEDED = 2; // Best of 3ish
+        
+        this.COLORS = ['red', 'blue', 'green', 'yellow'];
+        this.gridData = {}; 
+        this.players = [];
+        this.currentPlayerIndex = 0;
+        this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        this.hasCards = false;
+        
+        // UI Refs
+        this.gridEl = document.getElementById('grid');
+        this.turnBadge = document.getElementById('turn-indicator');
+        this.handContainer = document.getElementById('player-hand');
+        this.deckCountEl = document.getElementById('deck-count');
+        this.scoreboardEl = document.getElementById('scoreboard');
+        this.roundModal = document.getElementById('round-modal');
+        this.setupModal = document.getElementById('setup-modal');
+
+        this.selectedCardIndex = null; // Which card in hand is selected
+    }
+
+    // --- Core Setup ---
+
+    resetMatch() {
+        this.setupModal.classList.add('active');
+        this.roundModal.classList.remove('active');
+        this.players = [];
+        this.scoreboardEl.innerHTML = '';
+    }
+
+    init(playerCount) {
+        this.setupModal.classList.remove('active');
+        this.createPlayers(playerCount);
+        this.renderScoreboard();
+        this.startRound();
+    }
+
+    startRound() {
+        this.roundModal.classList.remove('active');
+        // Reset Board Logic
+        this.gridData = {};
+        this.gridEl.innerHTML = '';
+        this.hasCards = false;
+        this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+        this.currentPlayerIndex = 0;
+
+        // Reset Decks & Hands
+        this.players.forEach(p => {
+            p.deck = this.generateDeck(p.colors);
+            p.hand = [];
+            this.drawCards(p, 2); // Fill hand
+        });
+
+        this.renderGrid();
+        this.updateTurnUI();
+    }
+
+    generateDeck(colors) {
+        let deck = [];
+        colors.forEach(color => {
+            for (let val = 1; val <= 9; val++) {
+                deck.push({ color, value: val });
+                deck.push({ color, value: val });
+            }
+        });
+        // Shuffle
+        for (let i = deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [deck[i], deck[j]] = [deck[j], deck[i]];
+        }
+        return deck;
+    }
+
+    createPlayers(count) {
+        this.players = [];
+        const configs = [
+            { id: 0, name: "P1", colors: count === 2 ? ['red', 'blue'] : ['red'] },
+            { id: 1, name: "P2", colors: count === 2 ? ['green', 'yellow'] : ['blue'] },
+            { id: 2, name: "P3", colors: ['green'] },
+            { id: 3, name: "P4", colors: ['yellow'] }
+        ];
+
+        for(let i=0; i<count; i++) {
+            this.players.push({
+                ...configs[i],
+                wins: 0,
+                deck: [],
+                hand: []
+            });
+        }
+    }
+
+    drawCards(player, count) {
+        for(let i=0; i<count; i++) {
+            if(player.deck.length > 0 && player.hand.length < 2) {
+                player.hand.push(player.deck.pop());
+            }
+        }
+    }
+
+    // --- Rendering ---
+
+    renderGrid() {
+        this.gridEl.innerHTML = '';
+        for (let y = 0; y < this.GRID_SIZE; y++) {
+            for (let x = 0; x < this.GRID_SIZE; x++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                const lx = x - this.CENTER;
+                const ly = y - this.CENTER;
+                
+                cell.dataset.lx = lx;
+                cell.dataset.ly = ly;
+                cell.onclick = () => this.handleBoardClick(lx, ly);
+                
+                this.gridEl.appendChild(cell);
+            }
+        }
+    }
+
+    renderScoreboard() {
+        this.scoreboardEl.innerHTML = '';
+        this.players.forEach((p, idx) => {
+            const div = document.createElement('div');
+            div.className = `score-badge`;
+            div.id = `score-p${idx}`;
+            div.style.color = `var(--neon-${p.colors[0]})`;
+            
+            // Create dots for wins
+            let dots = '';
+            for(let i=0; i<this.WINS_NEEDED; i++) {
+                dots += `<div class="score-dot ${i < p.wins ? 'filled' : ''}"></div>`;
+            }
+            
+            div.innerHTML = `${p.name} ${dots}`;
+            this.scoreboardEl.appendChild(div);
+        });
+    }
+
+    renderHand() {
+        const p = this.players[this.currentPlayerIndex];
+        this.handContainer.innerHTML = '';
+        
+        p.hand.forEach((card, index) => {
+            const el = document.createElement('div');
+            el.className = `hand-card ${card.color}`;
+            if (this.selectedCardIndex === index) el.classList.add('selected');
+            el.textContent = card.value;
+            el.onclick = () => {
+                this.selectedCardIndex = index;
+                this.renderHand(); // Re-render to show selection
+                this.highlightValidMoves();
+            };
+            this.handContainer.appendChild(el);
+        });
+
+        // Auto-select first card if none selected
+        if (this.selectedCardIndex === null && p.hand.length > 0) {
+            this.selectedCardIndex = 0;
+            this.renderHand();
+        }
+    }
+
+    updateTurnUI() {
+        const p = this.players[this.currentPlayerIndex];
+        
+        // Update Turn Badge
+        this.turnBadge.textContent = `${p.name}'s Turn`;
+        this.turnBadge.style.color = `var(--neon-${p.colors[0]})`;
+        this.turnBadge.style.borderColor = `var(--neon-${p.colors[0]})`;
+
+        // Highlight active player in scoreboard
+        document.querySelectorAll('.score-badge').forEach(b => b.classList.remove('active'));
+        document.getElementById(`score-p${p.id}`).classList.add('active');
+
+        this.deckCountEl.textContent = p.deck.length;
+
+        // Reset Selection for new turn
+        this.selectedCardIndex = null;
+        this.renderHand();
+    }
+
+    // --- Game Logic ---
+
+    handleBoardClick(lx, ly) {
+        const p = this.players[this.currentPlayerIndex];
+        
+        // Must have card selected
+        if (this.selectedCardIndex === null || !p.hand[this.selectedCardIndex]) return;
+
+        const card = p.hand[this.selectedCardIndex];
+        const validation = this.checkMoveValidity(lx, ly, card.value);
+
+        if (!validation.valid) {
+            // Visual feedback for error could go here
+            return;
+        }
+
+        // EXECUTE MOVE
+        // 1. Remove from hand
+        p.hand.splice(this.selectedCardIndex, 1);
+        
+        // 2. Draw replacement
+        this.drawCards(p, 1);
+
+        // 3. Update Logical Grid
+        const key = `${lx},${ly}`;
+        this.gridData[key] = { color: card.color, value: card.value, ownerId: p.id };
+
+        // 4. Update Bounds
+        if (!this.hasCards) {
+            this.hasCards = true;
+            this.bounds = { minX: lx, maxX: lx, minY: ly, maxY: ly };
+        } else {
+            this.bounds.minX = Math.min(this.bounds.minX, lx);
+            this.bounds.maxX = Math.max(this.bounds.maxX, lx);
+            this.bounds.minY = Math.min(this.bounds.minY, ly);
+            this.bounds.maxY = Math.max(this.bounds.maxY, ly);
+        }
+
+        // 5. Render Card on Board
+        this.renderCardOnBoard(lx, ly, card);
+
+        // 6. Check Win
+        if (this.checkWin(lx, ly, card.color)) {
+            this.handleRoundWin(p);
+            return;
+        }
+
+        // 7. Check Draw (No cards left)
+        if (this.players.every(pl => pl.deck.length === 0 && pl.hand.length === 0)) {
+            alert("Draw!");
+            this.startRound(); // Quick restart
+            return;
+        }
+
+        // 8. Next Turn
+        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.updateTurnUI();
+    }
+
+    renderCardOnBoard(lx, ly, card) {
+        // Find cell
+        const vx = lx + this.CENTER;
+        const vy = ly + this.CENTER;
+        const cell = this.gridEl.children[vy * this.GRID_SIZE + vx];
+        
+        cell.innerHTML = '';
+        const cardDiv = document.createElement('div');
+        cardDiv.className = `card ${card.color}`;
+        cardDiv.textContent = card.value;
+        cell.appendChild(cardDiv);
+    }
+
+    checkMoveValidity(tx, ty, cardValue) {
+        const key = `${tx},${ty}`;
+        const existing = this.gridData[key];
+
+        // 1. Adjacency
+        if (this.hasCards) {
+            let hasNeighbor = false;
+            // 8 neighbors
+            for(let dx=-1; dx<=1; dx++) {
+                for(let dy=-1; dy<=1; dy++) {
+                    if(dx===0 && dy===0) continue;
+                    if(this.gridData[`${tx+dx},${ty+dy}`]) hasNeighbor = true;
+                }
+            }
+            if (!hasNeighbor && !existing) return { valid: false };
+        }
+
+        // 2. Value Overwrite
+        if (existing && cardValue <= existing.value) return { valid: false };
+
+        // 3. 6x6 Constraint
+        // Calculate theoretical bounds
+        const newMinX = this.hasCards ? Math.min(this.bounds.minX, tx) : tx;
+        const newMaxX = this.hasCards ? Math.max(this.bounds.maxX, tx) : tx;
+        const newMinY = this.hasCards ? Math.min(this.bounds.minY, ty) : ty;
+        const newMaxY = this.hasCards ? Math.max(this.bounds.maxY, ty) : ty;
+
+        if ((newMaxX - newMinX + 1) > 6 || (newMaxY - newMinY + 1) > 6) {
+            return { valid: false, reason: "bounds" };
+        }
+
+        return { valid: true };
+    }
+
+    highlightValidMoves() {
+        // Clear previous
+        Array.from(this.gridEl.children).forEach(c => {
+            c.className = 'cell'; // reset
+        });
+
+        const p = this.players[this.currentPlayerIndex];
+        if (this.selectedCardIndex === null || !p.hand[this.selectedCardIndex]) return;
+
+        const cardVal = p.hand[this.selectedCardIndex].value;
+
+        // Iterate all cells
+        Array.from(this.gridEl.children).forEach(cell => {
+            const lx = parseInt(cell.dataset.lx);
+            const ly = parseInt(cell.dataset.ly);
+            
+            const check = this.checkMoveValidity(lx, ly, cardVal);
+            
+            if (check.valid) {
+                cell.classList.add('valid-move');
+            } else if (check.reason === "bounds") {
+                // If it's invalid specifically because of bounds, visualize that!
+                // But only if it has a neighbor (otherwise the whole board lights up)
+                let hasNeighbor = false;
+                for(let dx=-1; dx<=1; dx++) {
+                    for(let dy=-1; dy<=1; dy++) {
+                        if (this.gridData[`${lx+dx},${ly+dy}`]) hasNeighbor = true;
+                    }
+                }
+                if(hasNeighbor && !this.gridData[`${lx},${ly}`]) {
+                   cell.classList.add('invalid-bounds'); 
+                }
+            }
+        });
+    }
+
+    checkWin(x, y, color) {
+        const dirs = [[1,0], [0,1], [1,1], [1,-1]];
+        for (let [dx, dy] of dirs) {
+            let line = [`${x},${y}`];
+            
+            // Check + direction
+            for(let i=1; i<4; i++) {
+                const k = `${x + dx*i},${y + dy*i}`;
+                if(this.gridData[k]?.color === color) line.push(k); else break;
+            }
+            // Check - direction
+            for(let i=1; i<4; i++) {
+                const k = `${x - dx*i},${y - dy*i}`;
+                if(this.gridData[k]?.color === color) line.push(k); else break;
+            }
+
+            if(line.length >= this.WIN_COUNT) {
+                this.highlightWin(line);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    highlightWin(keys) {
+        keys.forEach(k => {
+            const [lx, ly] = k.split(',');
+            const vx = parseInt(lx) + this.CENTER;
+            const vy = parseInt(ly) + this.CENTER;
+            const cell = this.gridEl.children[vy * this.GRID_SIZE + vx];
+            if(cell.firstChild) cell.firstChild.classList.add('winning');
+        });
+    }
+
+    handleRoundWin(player) {
+        player.wins++;
+        this.renderScoreboard();
+        
+        const msg = document.getElementById('round-msg');
+        const summary = document.getElementById('score-summary');
+
+        if (player.wins >= this.WINS_NEEDED) {
+            msg.textContent = `CHAMPION: ${player.name}`;
+            summary.textContent = "Match Complete!";
+            // Reset match stats
+            document.querySelector('#round-modal button').onclick = () => this.resetMatch();
+        } else {
+            msg.textContent = `${player.name} Takes the Round!`;
+            summary.textContent = `Score: ${player.wins} / ${this.WINS_NEEDED}`;
+            document.querySelector('#round-modal button').onclick = () => this.startRound();
+        }
+
+        setTimeout(() => {
+            this.roundModal.classList.add('active');
+        }, 1000);
+    }
+    
+    nextRound() {
+        // Helper for HTML button binding
+        this.startRound();
+    }
+}
+
+const game = new PuntoTactics();
