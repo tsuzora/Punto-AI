@@ -368,34 +368,65 @@ class PuntoTactics {
 
   createPlayers(count, mode) {
     this.players = [];
-    const configs = [
-      {
-        id: 0,
-        name: mode === "cvc" ? "CPU 1" : "P1",
-        colors: count === 2 ? ["red", "blue"] : ["red"],
-      },
-      {
-        id: 1,
-        name: mode === "cvc" ? "CPU 2" : mode === "pve" ? "CPU" : "P2",
-        colors: count === 2 ? ["green", "yellow"] : ["blue"],
-      },
-      { id: 2, name: mode === "cvc" ? "CPU 3" : "P3", colors: ["green"] },
-      { id: 3, name: mode === "cvc" ? "CPU 4" : "P4", colors: ["yellow"] },
-    ];
 
-    for (let i = 0; i < count; i++) {
-      let type = "human";
-      if (mode === "cvc") type = "cpu";
-      else if (mode === "pve" && i > 0) type = "cpu";
+    // 1. Determine Player Types
+    // If mode is an array ['human', 'cpu', 'cpu'], use it directly.
+    // Otherwise, generate it based on the preset strings.
+    let playerTypes = [];
+    if (Array.isArray(mode)) {
+      playerTypes = mode;
+      count = mode.length; // Override count to match array
+      // Determine if it's a generic mode for sidebar logic
+      this.mode = playerTypes.includes("cpu") ? "pve" : "pvp";
+      if (playerTypes.every((t) => t === "cpu")) this.mode = "cvc";
+    } else {
+      // Legacy/Standard Modes
+      for (let i = 0; i < count; i++) {
+        if (mode === "cvc") playerTypes.push("cpu");
+        else if (mode === "pve") playerTypes.push(i === 0 ? "human" : "cpu");
+        else playerTypes.push("human");
+      }
+    }
+
+    // 2. Assign Colors (Standard Punto Rules)
+    // 2 Players: P1(Red/Blue), P2(Green/Yellow)
+    // 3 Players: Red, Blue, Green
+    // 4 Players: Red, Blue, Green, Yellow
+    const getColors = (idx, total) => {
+      if (total === 2) return idx === 0 ? ["red"] : ["blue"];
+      const pool = ["red", "blue", "green", "yellow"];
+      return [pool[idx]];
+    };
+
+    // 3. Build Player Objects
+    playerTypes.forEach((type, i) => {
+      // Auto-Generate Name (e.g., "P1" or "CPU 1")
+      let name = type === "cpu" ? `CPU ${i + 1}` : `P${i + 1}`;
 
       this.players.push({
-        ...configs[i],
+        id: i,
+        name: name,
+        colors: getColors(i, count),
         wins: 0,
         deck: [],
         hand: [],
-        type: type,
-        stats: { games: 0, wins: 0 }, // Individual stats
+        type: type, // 'human' or 'cpu'
+        stats: { games: 0, wins: 0 },
       });
+    });
+
+    // 4. Force Update Sidebar Visibility based on new roster
+    const sidebar = document.getElementById("ai-sidebar");
+    if (sidebar) {
+      const hasCpu = this.players.some((p) => p.type === "cpu");
+      if (hasCpu) {
+        sidebar.classList.add("visible");
+        sidebar.style.display = "flex";
+        this.initStatsUI(count, this.mode);
+      } else {
+        sidebar.classList.remove("visible");
+        sidebar.style.display = "none";
+      }
     }
   }
 
