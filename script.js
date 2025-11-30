@@ -40,8 +40,8 @@ class PuntoAI {
           // Log interesting moves (High value only)
           if (result.type !== "Normal" && significantMovesFound < 4) {
             this.logs.push(
-              `> Candidate (${pos.x + this.game.CENTER - 5},${
-                pos.y + this.game.CENTER - 5
+              `> Candidate (${pos.x + this.game.CENTER - 4},${
+                pos.y + this.game.CENTER - 4
               }): ${result.type}`
             );
             significantMovesFound++;
@@ -64,8 +64,8 @@ class PuntoAI {
       this.logs.push(`----------------`);
       this.logs.push(`DECISION: ${bestMove.type.toUpperCase()}`);
       this.logs.push(
-        `Target: ${bestMove.lx + this.game.CENTER - 5}, ${
-          bestMove.ly + this.game.CENTER - 5
+        `Target: ${bestMove.lx + this.game.CENTER - 4}, ${
+          bestMove.ly + this.game.CENTER - 4
         }`
       );
       this.logs.push(
@@ -160,8 +160,8 @@ class PuntoAI {
 
 class PuntoTactics {
   constructor() {
-    this.GRID_SIZE = 11;
-    this.CENTER = 5;
+    this.GRID_SIZE = 9;
+    this.CENTER = 4;
     this.WIN_COUNT = 4;
     this.WINS_NEEDED = 2;
 
@@ -679,6 +679,17 @@ class PuntoTactics {
   }
 
   checkMoveValidity(tx, ty, cardValue, player) {
+    const absX = tx + this.CENTER;
+    const absY = ty + this.CENTER;
+
+    if (
+      absX < 0 ||
+      absX >= this.GRID_SIZE ||
+      absY < 0 ||
+      absY >= this.GRID_SIZE
+    ) {
+      return { valid: false, reason: "edge-of-board" };
+    }
     const key = `${tx},${ty}`;
     const existing = this.gridData[key];
 

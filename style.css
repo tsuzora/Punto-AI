@@ -204,8 +204,8 @@ header {
 
 #grid {
     display: grid;
-    grid-template-columns: repeat(11, var(--card-size));
-    grid-template-rows: repeat(11, var(--card-size));
+    grid-template-columns: repeat(9, var(--card-size));
+    grid-template-rows: repeat(9, var(--card-size));
     gap: var(--grid-gap);
     padding: 20px;
     background: rgba(255,255,255,0.03);
