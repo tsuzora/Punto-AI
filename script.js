@@ -2,28 +2,57 @@ class PuntoAI {
   constructor(game) {
     this.game = game;
     this.log = [];
+    this.turnCount = 0;
+
+    this.metrics = {
+      turn: 0,
+      candidates: 0,
+      heuristics: 0,
+      lineOps: 0,
+      latency: 0,
+      boxSize: "0x0",
+    };
   }
 
   findBestMove(playerId) {
-    this.logs = []; // Reset logs
+    this.turnCount++;
+
+    // 1. Reset Global Metrics for this turn
+    this.metrics = {
+      turn: this.turnCount,
+      candidates: 0,
+      heuristics: 0,
+      lineOps: 0,
+      latency: 0,
+      boxSize: `${this.game.bounds.maxX - this.game.bounds.minX + 1}x${
+        this.game.bounds.maxY - this.game.bounds.minY + 1
+      }`,
+      decision: "PASS",
+    };
+
+    // 2. Initialize Decision Trace Array
+    const decisionTrace = [];
+
+    this.logs = [];
     this.logs.push("Analyzing board state...");
 
-    let nodesEvaluated = 0;
+    const startTime = performance.now();
 
     const p = this.game.players.find((pl) => pl.id === playerId);
     let bestMove = null;
     let maxScore = -Infinity;
 
     const candidates = this.getPlayableCoordinates();
-    let significantMovesFound = 0;
 
-    // Shuffle cards to vary gameplay if scores are equal
+    // Shuffle cards
     const handIndices = p.hand.map((_, i) => i).sort(() => Math.random() - 0.5);
 
     for (let cardIdx of handIndices) {
       const card = p.hand[cardIdx];
 
       candidates.forEach((pos) => {
+        this.metrics.candidates++;
+
         const validation = this.game.checkMoveValidity(
           pos.x,
           pos.y,
@@ -32,36 +61,83 @@ class PuntoAI {
         );
 
         if (validation.valid) {
+          this.metrics.heuristics++;
+
           const result = this.calculateHeuristic(pos.x, pos.y, card, p);
-          const score = result.score + Math.random(); // Tie-breaker
+          // Add random jitter to score
+          const finalScore = result.score + Math.random();
 
-          nodesEvaluated++;
-
-          // Log interesting moves (High value only)
-          if (result.type !== "Normal" && significantMovesFound < 4) {
-            this.logs.push(
-              `> Candidate (${pos.x + this.game.CENTER - 4},${
+          // --- BUILD DECISION TRACE ROW ---
+          // Log moves that are strategic or high scoring
+          if (result.type !== "Normal" || finalScore > 50) {
+            decisionTrace.push({
+              Turn: this.turnCount,
+              Candidate: `(${pos.x + this.game.CENTER - 4}, ${
                 pos.y + this.game.CENTER - 4
-              }): ${result.type}`
-            );
-            significantMovesFound++;
+              })`, // Visual coords
+              Card: `${card.value} (${card.color})`,
+              "Heuristic Detected": this.getReadableHeuristicName(result.type),
+              Score: Math.floor(finalScore),
+              Selected: "No", // Will update later
+            });
           }
 
-          if (score > maxScore) {
-            maxScore = score;
+          // Track Best Move
+          if (finalScore > maxScore) {
+            maxScore = finalScore;
             bestMove = {
               lx: pos.x,
               ly: pos.y,
               cardIndex: cardIdx,
               type: result.type,
+              traceIndex: decisionTrace.length - 1, // Store index to mark "Selected"
             };
           }
         }
       });
     }
 
+    const endTime = performance.now();
+    this.metrics.latency = Math.round(endTime - startTime);
+
+    // --- FINALIZE METRICS & TRACE ---
     if (bestMove) {
-      this.logs.push(`----------------`);
+      this.metrics.decision = bestMove.type;
+      // Mark the selected move in the trace
+      if (
+        bestMove.traceIndex !== undefined &&
+        decisionTrace[bestMove.traceIndex]
+      ) {
+        decisionTrace[bestMove.traceIndex]["Selected"] = "Yes";
+      }
+    }
+
+    // --- CONSOLE OUTPUT BLOCK ---
+    console.group(`AI Turn ${this.turnCount} Analysis`); // Group everything together
+
+    // Table 1: Global Performance Metrics
+    console.log("--- Performance Metrics ---");
+    console.table({
+      Turn: this.metrics.turn,
+      Decision: this.metrics.decision,
+      "Candidate evaluations": this.metrics.candidates,
+      "Heuristic calculations": this.metrics.heuristics,
+      "Line-count operations": this.metrics.lineOps,
+      "Move latency": `${this.metrics.latency}ms`,
+      "Bounding box size": this.metrics.boxSize,
+    });
+
+    // Table 2: Detailed Decision Trace
+    if (decisionTrace.length > 0) {
+      console.log("--- Decision Trace ---");
+      console.table(decisionTrace);
+    } else {
+      console.log("No significant heuristic events this turn.");
+    }
+    console.groupEnd(); // End group
+
+    // --- GAME LOGS ---
+    if (bestMove) {
       this.logs.push(`DECISION: ${bestMove.type.toUpperCase()}`);
       this.logs.push(
         `Target: ${bestMove.lx + this.game.CENTER - 4}, ${
@@ -77,7 +153,15 @@ class PuntoAI {
       this.logs.push("No valid moves found.");
     }
 
-    return { move: bestMove, logs: this.logs, nodes: nodesEvaluated };
+    return { move: bestMove, logs: this.logs, nodes: this.metrics.heuristics };
+  }
+
+  getReadableHeuristicName(type) {
+    if (type.includes("VICTORY")) return "Winning move detected";
+    if (type.includes("BLOCK")) return "Opponent threat detected";
+    if (type.includes("Build Line")) return "Formation move";
+    if (type === "Normal") return "Neutral move";
+    return type;
   }
 
   getPlayableCoordinates() {
@@ -119,6 +203,7 @@ class PuntoAI {
 
     // f3: Setup (3 in a row)
     if (type === "Normal") {
+      this.metrics.lineOps++;
       // Only check if not already winning
       const lines = this.game.countLines(x, y, card.color);
       if (lines.maxLength >= 3) {
@@ -142,6 +227,8 @@ class PuntoAI {
             value: 9,
             ownerId: opp.id,
           };
+
+          this.metrics.lineOps++;
           if (this.game.checkWin(x, y, oppColor, true)) {
             score += W_BLOCK;
             type = "f2: BLOCK THREAT";
@@ -845,6 +932,7 @@ class PuntoTactics {
   }
 
   handleRoundWin(player) {
+    // 1. Update Stats & Counts
     this.players.forEach((p) => {
       p.stats.games++;
       if (p.id === player.id) {
@@ -852,7 +940,7 @@ class PuntoTactics {
       }
     });
 
-    // Refresh UI percentages immediately
+    // Refresh UI stats immediately
     this.players.forEach((p) => {
       if (p.type === "cpu") this.updateStatsUI(p.id, 0, 0);
     });
@@ -862,32 +950,64 @@ class PuntoTactics {
 
     const msg = document.getElementById("round-msg");
     const summary = document.getElementById("score-summary");
-
     const btn = document.querySelector("#round-modal button");
 
-    if (player.wins >= this.WINS_NEEDED) {
-      msg.textContent = `CHAMPION: ${player.name}`;
-      summary.textContent = "Match Complete!";
+    // --- DETERMINING IF MATCH ENDS ---
+    let isMatchOver = false;
 
-      if (btn) btn.onclick = () => this.resetMatch();
-
-      if (this.mode === "cvc") {
-        setTimeout(() => this.resetMatch(), 4000);
-      }
+    if (this.mode === "cvc") {
+      // CVC MODE: End after 50 total rounds
+      // We check stats.games of player[0] since everyone plays every round
+      const roundsPlayed = this.players[0].stats.games;
+      if (roundsPlayed >= 50) isMatchOver = true;
     } else {
-      msg.textContent = `${player.name} Takes the Round!`;
-      summary.textContent = `Score: ${player.wins} / ${this.WINS_NEEDED}`;
+      // NORMAL MODE: End when someone reaches target wins (e.g. 2)
+      if (player.wins >= this.WINS_NEEDED) isMatchOver = true;
+    }
 
-      if (btn) btn.onclick = () => this.startRound();
+    // --- HANDLE END OR CONTINUE ---
+    if (isMatchOver) {
+      // MATCH ENDED
+      msg.textContent =
+        this.mode === "cvc"
+          ? "SIMULATION COMPLETE"
+          : `CHAMPION: ${player.name}`;
+      summary.textContent =
+        this.mode === "cvc" ? "50 Rounds Finished" : "Match Complete!";
+
+      if (btn) {
+        btn.textContent = "Back to Menu";
+        btn.onclick = () => this.resetMatch();
+      }
+
+      // In CvC, we stop here so you can read the final stats.
+      // (We removed the auto-reset timer for the end state).
+    } else {
+      // ROUND OVER (CONTINUE)
+      msg.textContent = `${player.name} Takes the Round!`;
 
       if (this.mode === "cvc") {
-        setTimeout(() => this.startRound(), 1000);
+        summary.textContent = `Round ${this.players[0].stats.games} / 50`;
+      } else {
+        summary.textContent = `Score: ${player.wins} / ${this.WINS_NEEDED}`;
+      }
+
+      if (btn) {
+        btn.textContent = "Next Round";
+        btn.onclick = () => this.startRound();
+      }
+
+      // AUTO-PLAY NEXT ROUND (CvC Only)
+      if (this.mode === "cvc") {
+        // Wait 1.5 seconds then start next round automatically
+        setTimeout(() => this.startRound(), 1500);
       }
     }
 
+    // Show modal
     setTimeout(() => {
       this.roundModal.classList.add("active");
-    }, 1000);
+    }, 500);
   }
 
   nextRound() {
